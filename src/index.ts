@@ -1,6 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
+import { InferenceClient } from '@huggingface/inference'
+import dotenv from 'dotenv'
+dotenv.config()
 
 // Create server instance
 const server = new McpServer({
@@ -177,6 +180,68 @@ server.tool(
                     {
                         type: 'text',
                         text: `❌ 오류: 유효하지 않은 timezone입니다. (${timezone})\n올바른 형식: "Asia/Seoul", "America/New_York", "Europe/London", "UTC" 등`
+                    }
+                ]
+            }
+        }
+    }
+)
+
+// Add image generation tool
+server.tool(
+    'generate-image',
+    'Generate an image from text prompt using AI',
+    {
+        prompt: z.string().describe('Text prompt to generate image from')
+    },
+    async ({ prompt }) => {
+        try {
+            // Initialize Hugging Face client
+            const client = new InferenceClient(process.env.HF_TOKEN)
+
+            // Generate image
+            const image = await client.textToImage({
+                provider: 'fal-ai',
+                model: 'black-forest-labs/FLUX.1-schnell',
+                inputs: prompt,
+                parameters: { num_inference_steps: 5 }
+            })
+
+            // Convert Blob to base64
+            let base64Data: string
+            if (typeof image === 'object' && image && 'arrayBuffer' in image) {
+                const arrayBuffer = await (image as any).arrayBuffer()
+                const buffer = Buffer.from(arrayBuffer)
+                base64Data = buffer.toString('base64')
+            } else {
+                // If it's already a string (base64), use it directly
+                base64Data = typeof image === 'string' ? image : ''
+            }
+
+            return {
+                content: [
+                    {
+                        type: 'image',
+                        data: base64Data,
+                        mimeType: 'image/png'
+                    }
+                ],
+                annotations: {
+                    audience: ['user'],
+                    priority: 0.9
+                }
+            }
+        } catch (error) {
+            const errorMessage =
+                error instanceof Error
+                    ? error.message
+                    : '알 수 없는 오류가 발생했습니다'
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `❌ 이미지 생성 실패: ${errorMessage}\n\n다음을 확인해주세요:\n- HF_TOKEN 환경변수가 설정되어 있는지\n- 인터넷 연결이 안정적인지\n- 프롬프트가 적절한지`
                     }
                 ]
             }
@@ -364,7 +429,7 @@ server.resource(
 ## 📋 서버 정보
 - **이름**: greeting-mcp-server
 - **버전**: 1.0.0
-- **설명**: 다국어 인사, 계산기, 시간 조회 기능을 제공하는 MCP 서버
+- **설명**: 다국어 인사, 계산기, 시간 조회, AI 이미지 생성 기능을 제공하는 MCP 서버
 
 ## 🛠️ 사용 가능한 도구 (Tools)
 
@@ -404,6 +469,13 @@ server.resource(
 - **매개변수**:
   - \`timezone\` (optional): IANA 타임존 (기본값: UTC)
 - **지원 타임존**: Asia/Seoul, America/New_York, Europe/London 등
+
+### 7. generate-image
+- **설명**: 텍스트 프롬프트를 이용한 AI 이미지 생성
+- **매개변수**:
+  - \`prompt\` (string): 이미지 생성을 위한 텍스트 설명
+- **모델**: black-forest-labs/FLUX.1-schnell (fal-ai 제공)
+- **출력**: base64 인코딩된 PNG 이미지
 
 
 ## 📝 프롬프트 (Prompts)
