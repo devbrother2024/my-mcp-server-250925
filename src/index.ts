@@ -5,261 +5,266 @@ import { InferenceClient } from '@huggingface/inference'
 import dotenv from 'dotenv'
 dotenv.config()
 
-// Create server instance
-const server = new McpServer({
-    name: 'greeting-mcp-server',
-    version: '1.0.0',
-    capabilities: {
-        tools: {},
-        resources: {},
-        prompt: {}
-    }
-})
-
-// Add greeting tool
-server.tool(
-    'greeting',
-    'Friendly greeting tool that can greet users in various languages',
-    {
-        name: z.string().describe('Name of the person to greet'),
-        language: z
-            .enum(['korean', 'english', 'japanese', 'spanish'])
-            .optional()
-            .describe('Language for the greeting (default: korean)')
-    },
-    async ({ name, language = 'korean' }) => {
-        const greetings = {
-            korean: `안녕하세요, ${name}님! 반갑습니다! 😊`,
-            english: `Hello, ${name}! Nice to meet you! 😊`,
-            japanese: `こんにちは、${name}さん！お会いできて嬉しいです！😊`,
-            spanish: `¡Hola, ${name}! ¡Mucho gusto! 😊`
+export default function createServer() {
+    // Create server instance
+    const server = new McpServer({
+        name: 'greeting-mcp-server',
+        version: '1.0.0',
+        capabilities: {
+            tools: {},
+            resources: {},
+            prompt: {}
         }
+    })
 
-        return {
-            content: [
-                {
-                    type: 'text',
-                    text: greetings[language]
-                }
-            ]
-        }
-    }
-)
-
-// Add calculator tools
-server.tool(
-    'add',
-    'Addition calculator that adds two numbers',
-    {
-        a: z.number().describe('First number'),
-        b: z.number().describe('Second number')
-    },
-    async ({ a, b }) => {
-        const result = a + b
-        return {
-            content: [
-                {
-                    type: 'text',
-                    text: `${a} + ${b} = ${result}`
-                }
-            ]
-        }
-    }
-)
-
-server.tool(
-    'subtract',
-    'Subtraction calculator that subtracts second number from first number',
-    {
-        a: z.number().describe('First number (minuend)'),
-        b: z.number().describe('Second number (subtrahend)')
-    },
-    async ({ a, b }) => {
-        const result = a - b
-        return {
-            content: [
-                {
-                    type: 'text',
-                    text: `${a} - ${b} = ${result}`
-                }
-            ]
-        }
-    }
-)
-
-server.tool(
-    'multiply',
-    'Multiplication calculator that multiplies two numbers',
-    {
-        a: z.number().describe('First number'),
-        b: z.number().describe('Second number')
-    },
-    async ({ a, b }) => {
-        const result = a * b
-        return {
-            content: [
-                {
-                    type: 'text',
-                    text: `${a} × ${b} = ${result}`
-                }
-            ]
-        }
-    }
-)
-
-server.tool(
-    'divide',
-    'Division calculator that divides first number by second number',
-    {
-        a: z.number().describe('First number (dividend)'),
-        b: z.number().describe('Second number (divisor)')
-    },
-    async ({ a, b }) => {
-        if (b === 0) {
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: `Error: Division by zero is not allowed`
-                    }
-                ]
+    // Add greeting tool
+    server.tool(
+        'greeting',
+        'Friendly greeting tool that can greet users in various languages',
+        {
+            name: z.string().describe('Name of the person to greet'),
+            language: z
+                .enum(['korean', 'english', 'japanese', 'spanish'])
+                .optional()
+                .describe('Language for the greeting (default: korean)')
+        },
+        async ({ name, language = 'korean' }) => {
+            const greetings = {
+                korean: `안녕하세요, ${name}님! 반갑습니다! 😊`,
+                english: `Hello, ${name}! Nice to meet you! 😊`,
+                japanese: `こんにちは、${name}さん！お会いできて嬉しいです！😊`,
+                spanish: `¡Hola, ${name}! ¡Mucho gusto! 😊`
             }
-        }
-        const result = a / b
-        return {
-            content: [
-                {
-                    type: 'text',
-                    text: `${a} ÷ ${b} = ${result}`
-                }
-            ]
-        }
-    }
-)
-
-// Add time tool
-server.tool(
-    'time',
-    'Get current time in specified timezone',
-    {
-        timezone: z
-            .string()
-            .optional()
-            .describe(
-                'Timezone (e.g., "Asia/Seoul", "America/New_York", "Europe/London", "UTC"). Defaults to "UTC"'
-            )
-    },
-    async ({ timezone = 'UTC' }) => {
-        try {
-            const now = new Date()
-            const options: Intl.DateTimeFormatOptions = {
-                timeZone: timezone,
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                weekday: 'long'
-            }
-
-            const formatter = new Intl.DateTimeFormat('ko-KR', options)
-            const formattedTime = formatter.format(now)
 
             return {
                 content: [
                     {
                         type: 'text',
-                        text: `🕐 ${timezone} 시간: ${formattedTime}`
-                    }
-                ]
-            }
-        } catch (error) {
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: `❌ 오류: 유효하지 않은 timezone입니다. (${timezone})\n올바른 형식: "Asia/Seoul", "America/New_York", "Europe/London", "UTC" 등`
+                        text: greetings[language]
                     }
                 ]
             }
         }
-    }
-)
+    )
 
-// Add image generation tool
-server.tool(
-    'generate-image',
-    'Generate an image from text prompt using AI',
-    {
-        prompt: z.string().describe('Text prompt to generate image from')
-    },
-    async ({ prompt }) => {
-        try {
-            // Initialize Hugging Face client
-            const client = new InferenceClient(process.env.HF_TOKEN)
-
-            // Generate image
-            const image = await client.textToImage({
-                provider: 'fal-ai',
-                model: 'black-forest-labs/FLUX.1-schnell',
-                inputs: prompt,
-                parameters: { num_inference_steps: 5 }
-            })
-
-            // Convert Blob to base64
-            let base64Data: string
-            if (typeof image === 'object' && image && 'arrayBuffer' in image) {
-                const arrayBuffer = await (image as any).arrayBuffer()
-                const buffer = Buffer.from(arrayBuffer)
-                base64Data = buffer.toString('base64')
-            } else {
-                // If it's already a string (base64), use it directly
-                base64Data = typeof image === 'string' ? image : ''
-            }
-
+    // Add calculator tools
+    server.tool(
+        'add',
+        'Addition calculator that adds two numbers',
+        {
+            a: z.number().describe('First number'),
+            b: z.number().describe('Second number')
+        },
+        async ({ a, b }) => {
+            const result = a + b
             return {
                 content: [
                     {
-                        type: 'image',
-                        data: base64Data,
-                        mimeType: 'image/png'
+                        type: 'text',
+                        text: `${a} + ${b} = ${result}`
                     }
-                ],
-                annotations: {
-                    audience: ['user'],
-                    priority: 0.9
+                ]
+            }
+        }
+    )
+
+    server.tool(
+        'subtract',
+        'Subtraction calculator that subtracts second number from first number',
+        {
+            a: z.number().describe('First number (minuend)'),
+            b: z.number().describe('Second number (subtrahend)')
+        },
+        async ({ a, b }) => {
+            const result = a - b
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `${a} - ${b} = ${result}`
+                    }
+                ]
+            }
+        }
+    )
+
+    server.tool(
+        'multiply',
+        'Multiplication calculator that multiplies two numbers',
+        {
+            a: z.number().describe('First number'),
+            b: z.number().describe('Second number')
+        },
+        async ({ a, b }) => {
+            const result = a * b
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `${a} × ${b} = ${result}`
+                    }
+                ]
+            }
+        }
+    )
+
+    server.tool(
+        'divide',
+        'Division calculator that divides first number by second number',
+        {
+            a: z.number().describe('First number (dividend)'),
+            b: z.number().describe('Second number (divisor)')
+        },
+        async ({ a, b }) => {
+            if (b === 0) {
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: `Error: Division by zero is not allowed`
+                        }
+                    ]
                 }
             }
-        } catch (error) {
-            const errorMessage =
-                error instanceof Error
-                    ? error.message
-                    : '알 수 없는 오류가 발생했습니다'
-
+            const result = a / b
             return {
                 content: [
                     {
                         type: 'text',
-                        text: `❌ 이미지 생성 실패: ${errorMessage}\n\n다음을 확인해주세요:\n- HF_TOKEN 환경변수가 설정되어 있는지\n- 인터넷 연결이 안정적인지\n- 프롬프트가 적절한지`
+                        text: `${a} ÷ ${b} = ${result}`
                     }
                 ]
             }
         }
-    }
-)
+    )
 
-// Add code review prompt
-server.prompt(
-    'code-review',
-    'Generate a comprehensive code review prompt for the provided code',
-    {
-        code: z.string().describe('The code to be reviewed')
-    },
-    async ({ code }) => {
-        const detectedLanguage = detectLanguage(code)
+    // Add time tool
+    server.tool(
+        'time',
+        'Get current time in specified timezone',
+        {
+            timezone: z
+                .string()
+                .optional()
+                .describe(
+                    'Timezone (e.g., "Asia/Seoul", "America/New_York", "Europe/London", "UTC"). Defaults to "UTC"'
+                )
+        },
+        async ({ timezone = 'UTC' }) => {
+            try {
+                const now = new Date()
+                const options: Intl.DateTimeFormatOptions = {
+                    timeZone: timezone,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    weekday: 'long'
+                }
 
-        const reviewPrompt = `# 📋 코드 리뷰 요청
+                const formatter = new Intl.DateTimeFormat('ko-KR', options)
+                const formattedTime = formatter.format(now)
+
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: `🕐 ${timezone} 시간: ${formattedTime}`
+                        }
+                    ]
+                }
+            } catch (error) {
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: `❌ 오류: 유효하지 않은 timezone입니다. (${timezone})\n올바른 형식: "Asia/Seoul", "America/New_York", "Europe/London", "UTC" 등`
+                        }
+                    ]
+                }
+            }
+        }
+    )
+
+    // Add image generation tool
+    server.tool(
+        'generate-image',
+        'Generate an image from text prompt using AI',
+        {
+            prompt: z.string().describe('Text prompt to generate image from')
+        },
+        async ({ prompt }) => {
+            try {
+                // Initialize Hugging Face client
+                const client = new InferenceClient(process.env.HF_TOKEN)
+
+                // Generate image
+                const image = await client.textToImage({
+                    provider: 'fal-ai',
+                    model: 'black-forest-labs/FLUX.1-schnell',
+                    inputs: prompt,
+                    parameters: { num_inference_steps: 5 }
+                })
+
+                // Convert Blob to base64
+                let base64Data: string
+                if (
+                    typeof image === 'object' &&
+                    image &&
+                    'arrayBuffer' in image
+                ) {
+                    const arrayBuffer = await (image as any).arrayBuffer()
+                    const buffer = Buffer.from(arrayBuffer)
+                    base64Data = buffer.toString('base64')
+                } else {
+                    // If it's already a string (base64), use it directly
+                    base64Data = typeof image === 'string' ? image : ''
+                }
+
+                return {
+                    content: [
+                        {
+                            type: 'image',
+                            data: base64Data,
+                            mimeType: 'image/png'
+                        }
+                    ],
+                    annotations: {
+                        audience: ['user'],
+                        priority: 0.9
+                    }
+                }
+            } catch (error) {
+                const errorMessage =
+                    error instanceof Error
+                        ? error.message
+                        : '알 수 없는 오류가 발생했습니다'
+
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: `❌ 이미지 생성 실패: ${errorMessage}\n\n다음을 확인해주세요:\n- HF_TOKEN 환경변수가 설정되어 있는지\n- 인터넷 연결이 안정적인지\n- 프롬프트가 적절한지`
+                        }
+                    ]
+                }
+            }
+        }
+    )
+
+    // Add code review prompt
+    server.prompt(
+        'code-review',
+        'Generate a comprehensive code review prompt for the provided code',
+        {
+            code: z.string().describe('The code to be reviewed')
+        },
+        async ({ code }) => {
+            const detectedLanguage = detectLanguage(code)
+
+            const reviewPrompt = `# 📋 코드 리뷰 요청
 
 ## 💻 코드 정보
 - **언어**: ${detectedLanguage}
@@ -346,85 +351,85 @@ ${code}
 
 위 프롬프트를 사용해서 제공된 코드에 대한 체계적인 리뷰를 진행해주세요.`
 
-        return {
-            messages: [
-                {
-                    role: 'user',
-                    content: {
-                        type: 'text',
-                        text: reviewPrompt
+            return {
+                messages: [
+                    {
+                        role: 'user',
+                        content: {
+                            type: 'text',
+                            text: reviewPrompt
+                        }
                     }
-                }
-            ]
+                ]
+            }
         }
-    }
-)
+    )
 
-// Helper function to detect programming language
-function detectLanguage(code: string): string {
-    // Simple language detection based on common patterns
-    if (
-        code.includes('function ') ||
-        code.includes('const ') ||
-        code.includes('let ') ||
-        code.includes('=>')
-    ) {
+    // Helper function to detect programming language
+    function detectLanguage(code: string): string {
+        // Simple language detection based on common patterns
         if (
-            code.includes('interface ') ||
-            code.includes(': string') ||
-            code.includes(': number')
+            code.includes('function ') ||
+            code.includes('const ') ||
+            code.includes('let ') ||
+            code.includes('=>')
         ) {
-            return 'TypeScript'
+            if (
+                code.includes('interface ') ||
+                code.includes(': string') ||
+                code.includes(': number')
+            ) {
+                return 'TypeScript'
+            }
+            return 'JavaScript'
         }
-        return 'JavaScript'
-    }
-    if (
-        code.includes('def ') ||
-        (code.includes('import ') && code.includes('from '))
-    ) {
-        return 'Python'
-    }
-    if (
-        code.includes('public class ') ||
-        code.includes('private ') ||
-        code.includes('public static void main')
-    ) {
-        return 'Java'
-    }
-    if (code.includes('#include') || code.includes('int main(')) {
-        return 'C/C++'
-    }
-    if (code.includes('func ') || code.includes('package main')) {
-        return 'Go'
-    }
-    if (code.includes('fn ') || code.includes('let mut ')) {
-        return 'Rust'
-    }
-    if (code.includes('<?php')) {
-        return 'PHP'
-    }
-    if (
-        code.includes('SELECT ') ||
-        code.includes('FROM ') ||
-        code.includes('WHERE ')
-    ) {
-        return 'SQL'
+        if (
+            code.includes('def ') ||
+            (code.includes('import ') && code.includes('from '))
+        ) {
+            return 'Python'
+        }
+        if (
+            code.includes('public class ') ||
+            code.includes('private ') ||
+            code.includes('public static void main')
+        ) {
+            return 'Java'
+        }
+        if (code.includes('#include') || code.includes('int main(')) {
+            return 'C/C++'
+        }
+        if (code.includes('func ') || code.includes('package main')) {
+            return 'Go'
+        }
+        if (code.includes('fn ') || code.includes('let mut ')) {
+            return 'Rust'
+        }
+        if (code.includes('<?php')) {
+            return 'PHP'
+        }
+        if (
+            code.includes('SELECT ') ||
+            code.includes('FROM ') ||
+            code.includes('WHERE ')
+        ) {
+            return 'SQL'
+        }
+
+        return 'Unknown'
     }
 
-    return 'Unknown'
-}
-
-// Add server spec resource
-server.resource(
-    'server-spec',
-    'server://greeting-mcp-server/spec',
-    {
-        name: 'Server Specification',
-        description: 'Server specification and available tools information',
-        mimeType: 'text/markdown'
-    },
-    async () => {
-        const serverSpec = `# Greeting MCP Server 스펙
+    // Add server spec resource
+    server.resource(
+        'server-spec',
+        'server://greeting-mcp-server/spec',
+        {
+            name: 'Server Specification',
+            description: 'Server specification and available tools information',
+            mimeType: 'text/markdown'
+        },
+        async () => {
+            const serverSpec = `# Greeting MCP Server 스펙
 
 ## 📋 서버 정보
 - **이름**: greeting-mcp-server
@@ -499,27 +504,30 @@ server.resource(
 
 ## 📅 마지막 업데이트
 ${new Date().toLocaleDateString('ko-KR')} ${new Date().toLocaleTimeString(
-            'ko-KR'
-        )}
+                'ko-KR'
+            )}
 `
 
-        return {
-            contents: [
-                {
-                    text: serverSpec,
-                    uri: 'server://greeting-mcp-server/spec',
-                    mimeType: 'text/markdown'
-                }
-            ]
+            return {
+                contents: [
+                    {
+                        text: serverSpec,
+                        uri: 'server://greeting-mcp-server/spec',
+                        mimeType: 'text/markdown'
+                    }
+                ]
+            }
         }
+    )
+
+    // Start the server
+    async function main() {
+        const transport = new StdioServerTransport()
+        await server.connect(transport)
+        console.error('Greeting MCP Server running on stdio')
     }
-)
 
-// Start the server
-async function main() {
-    const transport = new StdioServerTransport()
-    await server.connect(transport)
-    console.error('Greeting MCP Server running on stdio')
+    main().catch(console.error)
+
+    return server.server // Must return the MCP server object
 }
-
-main().catch(console.error)
